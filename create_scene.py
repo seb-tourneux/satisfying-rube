@@ -35,10 +35,6 @@ notes_list = [
 [12.612, "B", 0]
 ]
 
-frame_end = int(notes_list[-1][0] * frame_rate + 10)
-bpy.context.scene.use_custom_simulation_range = True
-bpy.context.scene.simulation_frame_end = frame_end
-bpy.context.scene.frame_end = frame_end
 
 def generate_color(note_index, total_notes):
     hue = note_index / total_notes
@@ -58,40 +54,63 @@ def load_base_scene():
     time.sleep(1)
 
 def create_platform(i, frame, location, rotation, note):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=location)
-    platform = bpy.context.object
-    platform.scale = (2, 2, 0.5)
-    platform.rotation_euler = rotation
-    platform.name = f"Platform_{i}_f{frame}_{note}"
-    bpy.ops.rigidbody.object_add()
-    platform.rigid_body.type = 'PASSIVE'
-    platform.rigid_body.friction = 0.1
-    platform.rigid_body.restitution = 1
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0,0,-0.5))
+    collider = bpy.context.object
+    # top surface of platform at origin
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     
+    collider.location = location
+    collider.scale = (2, 2, 0.5)
+    collider.rotation_euler = rotation
+    if i < 0:
+        collider.name = f"Platform_base"
+    else:
+        collider.name = f"Platform_{i}_f{frame}_{note}"
+    bpy.ops.rigidbody.object_add()
+    collider.rigid_body.type = 'PASSIVE'
+    collider.rigid_body.friction = 0.1
+    collider.rigid_body.restitution = 1
+    
+    # Pretty platform (only for render)
+    pretty_platform_ref = bpy.data.objects.get("S_pretty_platform")
+    pretty_platform_ref.hide_render = False
+    pretty_platform_ref.hide_set(False)
+    
+    bpy.ops.object.select_all(action='DESELECT')
+    pretty_platform_ref.select_set(True)
+    bpy.ops.object.duplicate(linked=True)
+    instance_pretty = bpy.context.selected_objects[0]
+    instance_pretty.location = collider.location
+    instance_pretty.rotation_euler = collider.rotation_euler
+    instance_pretty.hide_render = False
+    instance_pretty.hide_set(False)
     if frame >= 0:
 
         bpy.context.scene.frame_set(frame-1)
         data_path_color = "color"
         activated_prop = "Prop_activated"
         data_path_activated = f'["{activated_prop}"]'
-        platform[activated_prop] = 0.0
-        platform.keyframe_insert(data_path=data_path_color, frame=frame-1)
-        platform.keyframe_insert(data_path=data_path_activated, frame=frame-1)
+        instance_pretty[activated_prop] = 0.0
+        instance_pretty.keyframe_insert(data_path=data_path_color, frame=frame-1)
+        instance_pretty.keyframe_insert(data_path=data_path_activated, frame=frame-1)
 
         bpy.context.scene.frame_set(frame)
         if note in note_colors_US:
-            platform.color = note_colors_US[note]
+            instance_pretty.color = note_colors_US[note]
         if note in note_colors_EU:
-            platform.color = note_colors_EU[note]
+            instance_pretty.color = note_colors_EU[note]
 
-        platform[activated_prop] = 1.0
-        platform.keyframe_insert(data_path=data_path_activated, frame=frame)
-        platform.keyframe_insert(data_path=data_path_color, frame=frame)
+        instance_pretty[activated_prop] = 1.0
+        instance_pretty.keyframe_insert(data_path=data_path_activated, frame=frame)
+        instance_pretty.keyframe_insert(data_path=data_path_color, frame=frame)
     
+    instance_pretty.name = collider.name + "_pretty"
+
     mat = bpy.data.materials.get("M_platform_plate")
-    platform.data.materials.append(mat)
+    collider.data.materials.append(mat)
+    instance_pretty.data.materials.append(mat)
         
-    return platform
+    return collider
 
 def create_ball(location, radius=0.5):
     ball = bpy.data.objects.get("Ball")
@@ -151,7 +170,7 @@ def setup_cameras():
     cam.location[2] = 50
 
 
-def generate_platforms_from_notes():
+def generate_platforms_from_notes(platforms_colliders):
     ball_position_at_end = (0,0,0)
     ball = bpy.data.objects.get("Ball")
 
@@ -166,23 +185,35 @@ def generate_platforms_from_notes():
         # if notes are close, we might want to have close platform orientation
         # so the ball is more rolling on successive platforms, rather than bouncing back and forth
         platform_angle = platform_base_angle if i % 2 else -platform_base_angle
-        create_platform(i, frame,
-                        location=ball_position_at_end, 
-                        rotation=(math.radians(platform_angle), 0, 0), 
-                        note=note)
+        platforms_colliders.append(create_platform(i, frame,
+                                                    location=ball_position_at_end, 
+                                                    rotation=(math.radians(platform_angle), 0, 0), 
+                                                    note=note))
     return ball_position_at_end
 
+def hide_colliders(platforms_colliders):
+    for collider in platforms_colliders:
+        collider.hide_render = True
+        collider.hide_set(True)
+
+    pretty_platform_ref = bpy.data.objects.get("S_pretty_platform")
+    pretty_platform_ref.hide_render = True
+    pretty_platform_ref.hide_set(True)
+
 def main():
+    platforms_colliders = []
     ball = create_ball(location=ball_start_location)
     setup_cameras()
-    create_platform(-1, -1,
-                    location=(0,0,-20), 
-                    rotation=(math.radians(20.0), 0, 0), 
-                    note="")
+    platforms_colliders.append(create_platform(-1, -1,
+                                location=(0,0,-20), 
+                                rotation=(math.radians(20.0), 0, 0), 
+                                note="")
+                                )
     
-    ball_position_at_end = generate_platforms_from_notes()
+    ball_position_at_end = generate_platforms_from_notes(platforms_colliders)
 
     create_wall(ball_position_at_end)
+    hide_colliders(platforms_colliders)
 
 
 if __name__ == '__main__':
