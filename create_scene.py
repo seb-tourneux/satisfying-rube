@@ -60,7 +60,7 @@ def create_platform(i, frame, location, rotation, note):
     bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     
     collider.location = location
-    collider.scale = (2, 2, 0.5)
+    collider.scale = (2, 1, 0.5)
     collider.rotation_euler = rotation
     if i < 0:
         collider.name = f"Platform_base"
@@ -70,7 +70,8 @@ def create_platform(i, frame, location, rotation, note):
     collider.rigid_body.type = 'PASSIVE'
     collider.rigid_body.friction = 0.1
     collider.rigid_body.restitution = 1
-    
+    collider.rigid_body.mesh_source = 'BASE'
+
     # Pretty platform (only for render)
     pretty_platform_ref = bpy.data.objects.get("S_pretty_platform")
     pretty_platform_ref.hide_render = False
@@ -152,7 +153,7 @@ def setup_cameras():
     bpy.ops.object.empty_add(type='PLAIN_AXES', align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
     empty_rot = bpy.context.object
     empty_rot.name = "E_Ball_rot"
-    empty_rot.rotation_euler = (math.radians(73), 0, math.radians(80))
+    empty_rot.rotation_euler = (math.radians(73), 0, math.radians(60))
     empty_rot.parent = empty_loc
         
     # close-up camera
@@ -205,7 +206,7 @@ def main():
     ball = create_ball(location=ball_start_location)
     setup_cameras()
     platforms_colliders.append(create_platform(-1, -1,
-                                location=(0,0,-20), 
+                                location=(0,0,-10), 
                                 rotation=(math.radians(20.0), 0, 0), 
                                 note="")
                                 )
